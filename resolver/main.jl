@@ -4,60 +4,69 @@ gr()
 
 
 #%% Timebase
-timelimit = 500e-3
-cont_samplerate = 1000e3
-cont_samplecount = Int(timelimit * cont_samplerate + 1)
-cont_timebase = collect(0.0 : timelimit/(cont_samplecount-1) : timelimit)
+timelimit = 1e-3
+samplerate_cont = 1000e3
+ts_cont = 1/samplerate_cont
+samplecount_cont = Int(timelimit * samplerate_cont + 1)
+timebase_cont = collect(0.0 : timelimit/(samplecount_cont-1) : timelimit)
 #%%
 
 
 #%% Generate accel, speed, angle
-accel = DataFrame(timestamp=cont_timebase, value=zeros(length(cont_timebase)))
-for i in 1:nrow(accel)
-    if i < length(cont_timebase)/4
-        accel.value[i] = 1000.0
-    elseif i < length(cont_timebase)/2
-        accel.value[i] = 2000.0
-    elseif i < 3*length(cont_timebase)/4
-        accel.value[i] = 0.0
+df_mech = DataFrame();
+df_mech.timepoint = timebase_cont;
+
+df_mech[!, :ϵ] .= 0.0
+for i in 1:nrow(df_mech)
+    if i < nrow(df_mech)/4
+        df_mech.ϵ[i] = 1000.0
+    elseif i < nrow(df_mech)/2
+        df_mech.ϵ[i] = 2000.0
+    elseif i < 3*nrow(df_mech)/4
+        df_mech.ϵ[i] = 0.0
     else
-        accel.value[i] = -3000.0
+        df_mech.ϵ[i] = -3000.0
     end
 end
 
-speed_rpm0 = 0.0
-speed_rpm = DataFrame(timestamp=cont_timebase, value=zeros(length(cont_timebase)))
-speed_rpm.value[1] = speed_rpm0
-for i in 2:nrow(speed_rpm)
-    speed_rpm.value[i] = speed_rpm.value[i-1] + accel.value[i]*(1/cont_samplerate)
+n_init = 8000.0
+df_mech[!, :n] .= 0.0
+df_mech.n[1] = n_init
+for i in 2:nrow(df_mech)
+    df_mech.n[i] = df_mech.n[i-1] + df_mech.ϵ[i-1]*ts_cont
 end
 
 polepairs = 4
-ω = transform(speed_rpm, [:value] => (value -> (2π*polepairs/60) .* value) => [:value])
+df_mech[!, :ω] = df_mech[:, :n] .* (2π*polepairs/60)
 
-θ = DataFrame(timestamp=cont_timebase, value=zeros(length(cont_timebase)))
-for i in 2:nrow(θ)
-    θ.value[i] = (θ.value[i-1] + ω.value[i]*(1/cont_samplerate)) % (2π)
+θ_init = 0.0
+df_mech[!, :θ] .= 0.0
+df_mech.θ[1] = θ_init;
+for i in 2:nrow(df_mech)
+    df_mech.θ[i] = (df_mech.θ[i-1] + df_mech.ω[i-1]*ts_cont) % (2π)
 end
 
 gr()
-plot1 = plot(cont_timebase, [accel.value, speed_rpm.value, θ.value], layout=(3, 1), legend=false)
+plot1 = plot(df_mech.timepoint, [df_mech.ϵ, df_mech.n, df_mech.θ], layout=(3, 1), legend=false)
 #%%
 
 
 #%% Resolver signals
+df_resolver = DataFrame();
+df_resolver.timepoint = timebase_cont;
+
 resolver_excfreq = 10e3
 resolver_excampl = 1
 
-resolver_exc = DataFrame(timestamp=cont_timebase, value=zeros(length(cont_timebase)))
-for i in 1:nrow(resolver_exc)
-    resolver_exc.value[i] = resolver_excampl * sin(2π*resolver_excfreq*resolver_exc.timestamp[i])
+df_resolver[!, :exc] .= 0.0
+for i in 1:nrow(df_resolver)
+    df_resolver.exc[i] = resolver_excampl * sin(2π*resolver_excfreq*df_resolver.timepoint[i])
 end
 
-resolver_sin = DataFrame(timestamp=cont_timebase, value=sin.(θ.value).*resolver_exc.value)
-resolver_cos = DataFrame(timestamp=cont_timebase, value=cos.(θ.value).*resolver_exc.value)
+df_resolver[!, :sin] = sin.(df_mech.θ) .* df_resolver[:, :exc]
+df_resolver[!, :cos] = cos.(df_mech.θ) .* df_resolver[:, :exc]
 
-plot2 = plot(cont_timebase, [resolver_exc.value, resolver_sin.value, resolver_cos.value])
+plot2 = plot(df_resolver.timepoint, [df_resolver.exc, df_resolver.sin, df_resolver.cos])
 plot(plot1, plot2, layout=(2, 1))
 #%%
 
