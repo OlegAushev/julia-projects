@@ -4,7 +4,7 @@ gr()
 
 
 #%% Timebase
-timelimit = 50e-3
+timelimit = 1000e-3
 samplerate_cont = 1000e3
 ts_cont = 1/samplerate_cont
 samplecount_cont = Int(timelimit * samplerate_cont + 1)
@@ -30,7 +30,7 @@ for i in 1:nrow(df_mech)
     end
 end
 
-n_init = -8000.0
+n_init = 0.0
 df_mech[!, :n] .= 0.0
 df_mech.n[1] = n_init
 for i in 2:nrow(df_mech)
@@ -40,14 +40,13 @@ end
 polepairs = 4
 df_mech[!, :ω] = df_mech[:, :n] .* (2π*polepairs/60)
 
-θ_init = 3
+θ_init = 0
 df_mech[!, :θ] .= 0.0
 df_mech.θ[1] = rem2pi(θ_init, RoundNearest)
 for i in 2:nrow(df_mech)
     df_mech.θ[i] = rem2pi((df_mech.θ[i-1] + df_mech.ω[i-1]*ts_cont), RoundNearest)
 end
 
-gr()
 plot_mech = plot(df_mech.timepoint, [df_mech.ϵ, df_mech.n, df_mech.θ], layout=(3, 1), legend=false)
 #%%
 
@@ -102,7 +101,7 @@ K2 = 2 * dampingfactor / naturalfreq
 
 for n in 2:nrow(df_observer)
     df_observer.ω[n] = df_observer.ω[n-1] + K1*ts_adc*df_observer.error[n-1]
-    df_observer.acc2[n] = rem2pi((df_observer.acc2[n-1] + ts*df_observer.ω[n-1]), RoundNearest)
+    df_observer.acc2[n] = rem2pi((df_observer.acc2[n-1] + ts_adc*df_observer.ω[n-1]), RoundNearest)
     df_observer.θ[n] = rem2pi((K2*df_observer.ω[n] + df_observer.acc2[n]), RoundNearest)
     df_observer.error[n] = df_adc.sin[n]*cos(df_observer.θ[n]) - df_adc.cos[n]*sin(df_observer.θ[n])
 end
