@@ -3,7 +3,7 @@ include("resolver.jl")
 gr()
 
 
-mech_data = generate_mechdata(100e-3, 1000e3, 0, 0)
+mech_data = generate_mechdata(100e-3, 1000e3, 0.0, 0.0)
 mech_plot = plot(mech_data.timepoint, [mech_data.ϵ, mech_data.n, mech_data.θ], layout=(3, 1), legend=false)
 
 

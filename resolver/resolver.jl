@@ -5,38 +5,44 @@ function generate_mechdata(timelimit, samplerate, θ_init, n_init)
     samplecount = Int(timelimit * samplerate + 1)
     ts = 1/samplerate
     
-    mechdata = DataFrame()
-    mechdata.timepoint = collect(0.0 : timelimit/(samplecount-1) : timelimit)
+    timepoint = collect(0.0 : timelimit/(samplecount-1) : timelimit)
     
-    mechdata[!, :ϵ] .= 0.0
+    ϵ = zeros(samplecount)
     ϵ_list = [2000.0, 4000.0, 0.0, -6000.0]
-    for i in 1:nrow(mechdata)
-        if i < nrow(mechdata)/4
-            mechdata.ϵ[i] = ϵ_list[1]
-        elseif i < nrow(mechdata)/2
-            mechdata.ϵ[i] = ϵ_list[2]
-        elseif i < 3*nrow(mechdata)/4
-            mechdata.ϵ[i] = ϵ_list[3]
+    for i in 1:samplecount
+        if i < samplecount/4
+            ϵ[i] = ϵ_list[1]
+        elseif i < samplecount/2
+            ϵ[i] = ϵ_list[2]
+        elseif i < 3*samplecount/4
+            ϵ[i] = ϵ_list[3]
         else
-            mechdata.ϵ[i] = ϵ_list[4]
+            ϵ[i] = ϵ_list[4]
         end
     end
 
-    mechdata[!, :n] .= 0.0
-    mechdata.n[1] = n_init
-    for i in 2:nrow(mechdata)
-        mechdata.n[i] = mechdata.n[i-1] + mechdata.ϵ[i-1]*ts
+    n = zeros(samplecount)
+    n[1] = n_init
+    for i in 2:samplecount
+        n[i] = n[i-1] + ϵ[i-1]*ts
     end
 
     polepairs = 4
-    mechdata[!, :ω] = mechdata[:, :n] .* (2π*polepairs/60)
+    ω = n .* (2π*polepairs/60)
 
-    mechdata[!, :θ] .= 0.0
-    mechdata.θ[1] = rem2pi(θ_init, RoundNearest)
-    for i in 2:nrow(mechdata)
-        mechdata.θ[i] = rem2pi((mechdata.θ[i-1] + mechdata.ω[i-1]*ts), RoundNearest)
+    θ = zeros(samplecount)
+    θ[1] = rem2pi(θ_init, RoundNearest)
+    for i in 2:samplecount
+        θ[i] = rem2pi((θ[i-1] + ω[i-1]*ts), RoundNearest)
     end
 
+    mechdata = DataFrame()
+    mechdata.timepoint = timepoint
+    mechdata.ϵ = ϵ
+    mechdata.n = n
+    mechdata.ω = ω
+    mechdata.θ = θ
+    
     return mechdata
 end
 
