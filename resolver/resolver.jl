@@ -8,21 +8,16 @@ function get_timebase(timelimit, samplerate)
 end
 
 
-function generate_mechdata(timebase, θ_init, n_init)
+function generate_mechdata(timebase, θ_init, n_init, ϵ_init)
     samplecount = length(timebase)
     ts = timebase[2] - timebase[1]
     
     ϵ = Array{Float64, 1}(undef, samplecount)
-    ϵ_list = [2000.0, 4000.0, 0.0, -6000.0]
     for i in eachindex(ϵ)
-        if i < samplecount/4
-            ϵ[i] = ϵ_list[1]
-        elseif i < samplecount/2
-            ϵ[i] = ϵ_list[2]
-        elseif i < 3*samplecount/4
-            ϵ[i] = ϵ_list[3]
+        if i < samplecount/2
+            ϵ[i] = ϵ_init
         else
-            ϵ[i] = ϵ_list[4]
+            ϵ[i] = -ϵ_init
         end
     end
 

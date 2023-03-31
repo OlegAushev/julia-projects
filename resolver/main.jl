@@ -3,11 +3,11 @@ include("resolver.jl")
 gr()
 
 
-timebase = get_timebase(100e-3, 1000e3)
-ϵ, n, ω, θ = generate_mechdata(timebase, 0.0, 8000.0)
+timebase = get_timebase(10e-3, 1000e3)
+ϵ, n, ω, θ = generate_mechdata(timebase, 0.0, 1000.0, 0.0)
 resolver_exc, resolver_sin, resolver_cos = get_resolver_signals(timebase, θ, 10e3, 1)
 sample_timepoints, sin_samples, cos_samples = sample_sincos(timebase, resolver_sin, resolver_cos, 10e3)
-ω_res, θ_res = run_observer(sample_timepoints, sin_samples, cos_samples, 4000.0, 1.0)
+ω_res, θ_res = run_observer(sample_timepoints, sin_samples, cos_samples, 8000.0, 1.0)
 
 
 
