@@ -7,9 +7,9 @@ function generate_mechdata(timelimit, samplerate, θ_init, n_init)
     
     timepoint = collect(0.0 : timelimit/(samplecount-1) : timelimit)
     
-    ϵ = zeros(samplecount)
+    ϵ = zeros(Float64, samplecount)
     ϵ_list = [2000.0, 4000.0, 0.0, -6000.0]
-    for i in 1:samplecount
+    for i in eachindex(ϵ)
         if i < samplecount/4
             ϵ[i] = ϵ_list[1]
         elseif i < samplecount/2
@@ -21,19 +21,19 @@ function generate_mechdata(timelimit, samplerate, θ_init, n_init)
         end
     end
 
-    n = zeros(samplecount)
+    n = zeros(Float64, samplecount)
     n[1] = n_init
-    for i in 2:samplecount
-        n[i] = n[i-1] + ϵ[i-1]*ts
+    for k in 1:samplecount-1
+        n[k+1] = n[k] + ϵ[k]*ts
     end
 
     polepairs = 4
     ω = n .* (2π*polepairs/60)
 
-    θ = zeros(samplecount)
+    θ = zeros(Float64, samplecount)
     θ[1] = rem2pi(θ_init, RoundNearest)
-    for i in 2:samplecount
-        θ[i] = rem2pi((θ[i-1] + ω[i-1]*ts), RoundNearest)
+    for k in 1:samplecount-1
+        θ[k+1] = rem2pi((θ[k] + ω[k]*ts), RoundNearest)
     end
 
     mechdata = DataFrame()
