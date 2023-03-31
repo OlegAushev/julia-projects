@@ -1,13 +1,18 @@
 using Plots, DataFrames
 
 
-function generate_mechdata(timelimit, samplerate, θ_init, n_init)
-    samplecount = Int(timelimit * samplerate + 1)
-    ts = 1/samplerate
+function get_timebase(timelimit, samplerate)
+    samplecount = Int(timelimit * samplerate) + 1
+    timebase = collect(0.0 : timelimit/(samplecount-1) : timelimit)
+    return timebase
+end
+
+
+function generate_mechdata(timebase, θ_init, n_init)
+    samplecount = length(timebase)
+    ts = timebase[2] - timebase[1]
     
-    timepoint = collect(0.0 : timelimit/(samplecount-1) : timelimit)
-    
-    ϵ = zeros(Float64, samplecount)
+    ϵ = Array{Float64, 1}(undef, samplecount)
     ϵ_list = [2000.0, 4000.0, 0.0, -6000.0]
     for i in eachindex(ϵ)
         if i < samplecount/4
@@ -21,7 +26,7 @@ function generate_mechdata(timelimit, samplerate, θ_init, n_init)
         end
     end
 
-    n = zeros(Float64, samplecount)
+    n = Array{Float64, 1}(undef, samplecount)
     n[1] = n_init
     for k in 1:samplecount-1
         n[k+1] = n[k] + ϵ[k]*ts
@@ -30,69 +35,56 @@ function generate_mechdata(timelimit, samplerate, θ_init, n_init)
     polepairs = 4
     ω = n .* (2π*polepairs/60)
 
-    θ = zeros(Float64, samplecount)
+    θ = Array{Float64, 1}(undef, samplecount)
     θ[1] = rem2pi(θ_init, RoundNearest)
     for k in 1:samplecount-1
         θ[k+1] = rem2pi((θ[k] + ω[k]*ts), RoundNearest)
     end
 
-    mechdata = DataFrame()
-    mechdata.timepoint = timepoint
-    mechdata.ϵ = ϵ
-    mechdata.n = n
-    mechdata.ω = ω
-    mechdata.θ = θ
+    return ϵ, n, ω, θ
+end
+
+
+function get_resolver_signals(timebase, θ, excfreq, excampl)
+    resolver_exc = excampl .* sin.(2π*excfreq .* timebase)
+    resolver_sin = sin.(θ) .* resolver_exc
+    resolver_cos = cos.(θ) .* resolver_exc
+
+    return resolver_exc, resolver_sin, resolver_cos
+end
+
+
+function sample_sincos(timebase, resolver_sin, resolver_cos, samplerate)
+    resolver_samplerate = 1 / (timebase[2] - timebase[1])
+    sample_timepoints = getindex(timebase,
+            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase)) 
+    sin_samples = getindex(resolver_sin,
+            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase))
+    cos_samples = getindex(resolver_cos,
+            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase))
+    return sample_timepoints, sin_samples, cos_samples
+end
+
+
+function run_observer(sample_timepoints, sin_samples, cos_samples, naturalfreq, dampingfactor)
+    samplecount = length(sample_timepoints)
+    ts = sample_timepoints[2] - sample_timepoints[1]
     
-    return mechdata
-end
-
-
-function get_resolver_signals(mechdata, excfreq, excampl)
-    resolver_signals = DataFrame()
-    resolver_signals.timepoint = mechdata.timepoint
-
-    resolver_signals[!, :exc] .= 0.0
-    for i in 1:nrow(resolver_signals)
-        resolver_signals.exc[i] = excampl * sin(2π*excfreq*resolver_signals.timepoint[i])
-    end
-
-    resolver_signals[!, :sin] = sin.(mechdata.θ) .* resolver_signals[:, :exc]
-    resolver_signals[!, :cos] = cos.(mechdata.θ) .* resolver_signals[:, :exc]
-
-    return resolver_signals
-end
-
-
-function sample_sincos(resolver_signals, samplerate)
-    resolver_samplerate = 1 / (resolver_signals.timepoint[2] - resolver_signals.timepoint[1])
-    samples = getindex(resolver_signals,
-                       Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):nrow(resolver_signals),
-                       [:timepoint, :sin, :cos])
-    return samples
-end
-
-
-function run_observer(sincos_samples, naturalfreq, dampingfactor)
-    observer_data = DataFrame()
-
-    observer_data.timepoint = sincos_samples.timepoint
-    observer_data[!, :error] .= 0.0
-    observer_data[!, :acc2] .= 0.0
-    observer_data[!, :ω] .= 0.0
-    observer_data[!, :θ] .= 0.0
+    error = Array{Float64, 1}(undef, samplecount)
+    acc2 = Array{Float64, 1}(undef, samplecount)
+    ω = Array{Float64, 1}(undef, samplecount)
+    θ = Array{Float64, 1}(undef, samplecount)
 
     K1 = naturalfreq^2
     K2 = 2 * dampingfactor / naturalfreq
 
-    ts = sincos_samples.timepoint[2] - sincos_samples.timepoint[1]
-
-    for k in 1:nrow(observer_data)-1
-        observer_data.ω[k+1] = observer_data.ω[k] + K1*ts*observer_data.error[k]
-        observer_data.acc2[k+1] = rem2pi((observer_data.acc2[k] + ts*observer_data.ω[k]), RoundNearest)
-        observer_data.θ[k+1] = rem2pi((K2*observer_data.ω[k+1] + observer_data.acc2[k+1]), RoundNearest)
-        observer_data.error[k+1] = sincos_samples.sin[k+1]*cos(observer_data.θ[k+1]) - sincos_samples.cos[k+1]*sin(observer_data.θ[k+1])
+    for k in 1:samplecount-1
+        ω[k+1] = ω[k] + K1*ts*error[k]
+        acc2[k+1] = rem2pi((acc2[k] + ts*ω[k]), RoundNearest)
+        θ[k+1] = rem2pi((K2*ω[k+1] + acc2[k+1]), RoundNearest)
+        error[k+1] = sin_samples[k+1]*cos(θ[k+1]) - cos_samples[k+1]*sin(θ[k+1])
     end
 
-    return observer_data
+    return ω, θ
 end
 
