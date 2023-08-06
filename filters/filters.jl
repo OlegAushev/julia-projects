@@ -1,4 +1,4 @@
-using Plots, DataFrames, Random
+using Plots, Random
 
 gr()
 

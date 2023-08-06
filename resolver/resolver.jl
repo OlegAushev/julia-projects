@@ -1,4 +1,4 @@
-using Plots, DataFrames
+using Plots
 
 
 function get_timebase(timelimit, samplerate)
