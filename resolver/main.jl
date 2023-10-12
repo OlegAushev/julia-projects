@@ -1,11 +1,10 @@
-#?using Plots
-using CairoMakie
+using GLMakie
 
 
 include("resolver.jl")
 
 
-timebase = get_timebase(1000e-3, 100e3)
+timebase = get_timebase(100e-3, 1000e3)
 ϵ, n, ω, θ = generate_mechdata(timebase, 0.0, 1000.0, 0.0)
 resolver_exc, resolver_sin, resolver_cos = get_resolver_signals(timebase, θ, 10e3, 1)
 sample_timepoints, sin_samples, cos_samples = sample_sincos(timebase, resolver_sin, resolver_cos, 10e3)
@@ -28,7 +27,7 @@ lines!(angle_plot, sample_timepoints, θ_res, linewidth = 2)
 speed_plot = Axis(figure1[3, 1])
 lines!(speed_plot, timebase, ω, linewidth = 4)
 lines!(speed_plot, sample_timepoints, ω_res, linewidth = 2)
-
+DataInspector(figure1)
 figure1
 
 
@@ -47,6 +46,7 @@ figure1
 
 
 # obsolete
+#using Plots
 
 #gr()
 #plotlyjs()
