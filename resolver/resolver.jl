@@ -1,4 +1,5 @@
-using Plots
+#
+using Noise
 
 
 function get_timebase(timelimit, samplerate)
@@ -20,6 +21,9 @@ function generate_mechdata(timebase, θ_init, n_init, ϵ_init)
             ϵ[i] = -ϵ_init
         end
     end
+
+    # sic!
+    ϵ = ϵ .+ 1000 .* sin.(2π * 10 .* timebase) .+ 1000000 .* sin.(2π * 17 .* timebase);
 
     n = Array{Float64, 1}(undef, samplecount)
     n[1] = n_init
@@ -45,18 +49,26 @@ function get_resolver_signals(timebase, θ, excfreq, excampl)
     resolver_sin = sin.(θ) .* resolver_exc
     resolver_cos = cos.(θ) .* resolver_exc
 
-    return resolver_exc, resolver_sin, resolver_cos
+    # sic!
+    resolver_sin_noise = add_gauss(resolver_sin, 0.1)
+    resolver_cos_noise = add_gauss(resolver_cos, 0.1)
+
+    return resolver_exc, resolver_sin_noise, resolver_cos_noise
 end
 
 
 function sample_sincos(timebase, resolver_sin, resolver_cos, samplerate)
     resolver_samplerate = 1 / (timebase[2] - timebase[1])
+
     sample_timepoints = getindex(timebase,
-            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase)) 
+            round(Int, resolver_samplerate/samplerate/4) : round(Int, resolver_samplerate/samplerate) : length(timebase))
+    
     sin_samples = getindex(resolver_sin,
-            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase))
+            round(Int, resolver_samplerate/samplerate/4) : round(Int, resolver_samplerate/samplerate) : length(timebase))
+    
     cos_samples = getindex(resolver_cos,
-            Int(resolver_samplerate/samplerate/4):Int(resolver_samplerate/samplerate):length(timebase))
+            round(Int, resolver_samplerate/samplerate/4) : round(Int, resolver_samplerate/samplerate) : length(timebase))
+    
     return sample_timepoints, sin_samples, cos_samples
 end
 
@@ -64,11 +76,15 @@ end
 function run_observer(sample_timepoints, sin_samples, cos_samples, naturalfreq, dampingfactor)
     samplecount = length(sample_timepoints)
     ts = sample_timepoints[2] - sample_timepoints[1]
-    
+
     error = Array{Float64, 1}(undef, samplecount)
+    error[1] = 0
     acc2 = Array{Float64, 1}(undef, samplecount)
+    acc2[1] = 0
     ω = Array{Float64, 1}(undef, samplecount)
+    ω[1] = 0
     θ = Array{Float64, 1}(undef, samplecount)
+    θ[1] = 0
 
     K1 = naturalfreq^2
     K2 = 2 * dampingfactor / naturalfreq
@@ -82,4 +98,3 @@ function run_observer(sample_timepoints, sin_samples, cos_samples, naturalfreq, 
 
     return ω, θ
 end
-
