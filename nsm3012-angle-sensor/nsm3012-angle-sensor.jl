@@ -7,7 +7,7 @@ timebase = LinRange(0.0, modeltime, samplecount)
 daq_freq = 10000.0
 daq_period = 1 / daq_freq
 
-n = 3000.0
+n = 6000.0
 ω = 2π * n / 60.0
 pole_pairs = 4
 max_angle_step = (9000.0 / 60.0) * 2π * daq_period
@@ -179,7 +179,7 @@ for i in 2 : length(daq_timebase)
 
     if (abs(input_sample[i] - input_sample[i-1])) > max_angle_step
         mech_angle[i] = rem2pi(mech_angle[i-1] + (speed_filter[i-1] / pole_pairs / daq_freq), RoundNearest)
-    elseif abs(input_sample[i] - input_filter[i]) > 5 * max_angle_step
+    elseif abs(input_sample[i] - input_filter[i]) > ndelay * max_angle_step
         mech_angle[i] = rem2pi(mech_angle[i-1] + (speed_filter[i-1] / pole_pairs / daq_freq), RoundNearest)
     elseif abs(mech_angle_diff) >= (2π - max_angle_step)
         if mech_angle[i] < 0
@@ -189,8 +189,6 @@ for i in 2 : length(daq_timebase)
         end
     elseif abs(mech_angle_diff) <= max_angle_step
         speed_filter[i] = speed_filter[i-1] + speed_smooth * (pole_pairs * mech_angle_diff * daq_freq - speed_filter[i-1])
-    # elseif (abs(mech_angle_diff) > 10*max_angle_step) && (abs(mech_angle_diff) < (2π - max_angle_step))
-        # mech_angle[i] = rem2pi(mech_angle[i-1] + (speed_filter[i-1] / pole_pairs / daq_freq), RoundNearest)
     end
 
     step[i] = mech_angle[i] - mech_angle[i-1]
@@ -198,13 +196,6 @@ for i in 2 : length(daq_timebase)
     elec_angle[i] = rem2pi(pole_pairs * mech_angle[i], RoundNearest)
     mech_abs_angle[i] = turns[i] * 2π + mech_angle[i]
     elec_abs_angle[i] = pole_pairs * mech_abs_angle[i]
-    
-    # diff = elec_abs_angle[i] - elec_abs_angle[i-1]
-    # if abs(diff) <= (max_angle_step * pole_pairs)
-    #     speed_filter[i] = speed_filter[i-1] + speed_smooth * (diff * daq_freq - speed_filter[i-1])
-    # else 
-    #     speed_filter[i] = speed_filter[i-1]
-    # end
 end
 
 speed_rpm = speed_filter .* (60 / 2π / pole_pairs)
