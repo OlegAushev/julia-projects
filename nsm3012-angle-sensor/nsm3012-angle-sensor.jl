@@ -63,7 +63,7 @@ push!(input_sample, input[1])
 push!(mech_angle, rem2pi(input[1], RoundNearest))
 
 for i in 1 : samplecount
-    if (timebase[i] - last(daq_timebase)) < daq_period - 1e-12
+    if (timebase[i] - last(daq_timebase)) < (daq_period - 1e-12)
         continue
     else
         push!(daq_timebase, timebase[i])
@@ -163,7 +163,7 @@ speed_filter[1] = 0
 
 
 # Approach II
-step = zeros(length(daq_timebase))
+fill!(mech_angle, 0)
 input_filter = zeros(length(daq_timebase))
 delay = 500e-6
 ndelay::Int = delay * daq_freq
@@ -175,24 +175,26 @@ for i in 2 : length(daq_timebase)
     turns[i] = turns[i-1]
     speed_filter[i] = speed_filter[i-1]
 
-    mech_angle_diff = mech_angle[i] - mech_angle[i-1]
+    sensor_bigdiff = abs(input_sample[i] - input_sample[i-1]) > max_angle_step
+    sensor_freeze = abs(input_sample[i] - input_filter[i]) > ndelay * max_angle_step
 
-    if (abs(input_sample[i] - input_sample[i-1])) > max_angle_step
-        mech_angle[i] = rem2pi(mech_angle[i-1] + (speed_filter[i-1] / pole_pairs / daq_freq), RoundNearest)
-    elseif abs(input_sample[i] - input_filter[i]) > ndelay * max_angle_step
-        mech_angle[i] = rem2pi(mech_angle[i-1] + (speed_filter[i-1] / pole_pairs / daq_freq), RoundNearest)
-    elseif abs(mech_angle_diff) >= (2π - max_angle_step)
-        if mech_angle[i] < 0
-            turns[i] = turns[i-1] + 1
-        else
-            turns[i] = turns[i-1] - 1
+    if (sensor_bigdiff || sensor_freeze)
+        mech_angle_diff = speed_filter[i-1] / pole_pairs / daq_freq
+        mech_angle[i] = rem2pi(mech_angle[i-1] + mech_angle_diff, RoundNearest)
+    else
+        mech_angle[i] = rem2pi(input_sample[i], RoundNearest)
+        mech_angle_diff = mech_angle[i] - mech_angle[i-1]      
+        if abs(mech_angle_diff) > (2π - max_angle_step)
+            if mech_angle[i] < 0
+                turns[i] = turns[i-1] + 1
+            else
+                turns[i] = turns[i-1] - 1
+            end
+        elseif abs(mech_angle_diff) <= max_angle_step
+            speed_filter[i] = speed_filter[i-1] + speed_smooth * (pole_pairs * mech_angle_diff * daq_freq - speed_filter[i-1])
         end
-    elseif abs(mech_angle_diff) <= max_angle_step
-        speed_filter[i] = speed_filter[i-1] + speed_smooth * (pole_pairs * mech_angle_diff * daq_freq - speed_filter[i-1])
     end
 
-    step[i] = mech_angle[i] - mech_angle[i-1]
-    
     elec_angle[i] = rem2pi(pole_pairs * mech_angle[i], RoundNearest)
     mech_abs_angle[i] = turns[i] * 2π + mech_angle[i]
     elec_abs_angle[i] = pole_pairs * mech_abs_angle[i]
