@@ -1,6 +1,6 @@
 using Noise, GLMakie, DataStructures
 
-modeltime = 1.0
+modeltime = 0.2
 samplecount = 100001
 timebase = LinRange(0.0, modeltime, samplecount)
 
@@ -64,6 +64,13 @@ ndelay::Int = delay * daq_freq
 sensor_angle_buffer = CircularBuffer{Float64}(ndelay)
 push!(sensor_angle_buffer, 0)
 
+
+cb_back = Vector{Float64}(undef, 0)
+push!(cb_back, 0)
+cb_front = Vector{Float64}(undef, 0)
+push!(cb_front, 0)
+
+
 turns = Vector{Int}(undef, 0)
 push!(turns, 0)
 
@@ -96,8 +103,15 @@ for i in 1 : samplecount
         sensor_bigdiff = abs(arg - sensor_angle_buffer[end]) > max_angle_step
         sensor_freeze = abs(arg - sensor_angle_buffer[1]) > length(sensor_angle_buffer) * max_angle_step
         
+        push!(cb_back, sensor_angle_buffer[end])
+        push!(cb_front, sensor_angle_buffer[1])
+        
+        push!(sensor_angle_buffer, arg)
+
         if sensor_bigdiff || sensor_freeze
-            push!(mech_angle, last(speed_filter)/pole_pairs/daq_freq)
+            mech_angle_diff = last(speed_filter)/pole_pairs/daq_freq
+            mech_angle_new = last(mech_angle) + mech_angle_diff
+            push!(mech_angle, rem2pi(mech_angle_new, RoundNearest))
         else
             prev_mech_angle = last(mech_angle)
             push!(mech_angle, rem2pi(arg, RoundNearest))
@@ -114,7 +128,6 @@ for i in 1 : samplecount
             end
         end
 
-        push!(sensor_angle_buffer, arg)
         push!(elec_angle, rem2pi(pole_pairs * last(mech_angle), RoundNearest))
         push!(mech_abs_angle, last(turns) * 2π + last(mech_angle))
         push!(elec_abs_angle, pole_pairs * last(mech_abs_angle))
@@ -129,10 +142,12 @@ speed_rpm = speed_filter .* (60 / 2π / pole_pairs)
 figure1 = Figure(size = (1500, 1000))
 
 angle_plot = Axis(figure1[1, 1])
-lines!(angle_plot, timebase, input)
+# lines!(angle_plot, timebase, input)
 lines!(angle_plot, daq_timebase, sensor_angle)
+lines!(angle_plot, daq_timebase, cb_back)
+lines!(angle_plot, daq_timebase, cb_front)
 lines!(angle_plot, daq_timebase, mech_angle)
-lines!(angle_plot, daq_timebase, elec_angle)
+# lines!(angle_plot, daq_timebase, elec_angle)
 
 turns_plot = Axis(figure1[2, 1])
 lines!(turns_plot, daq_timebase, turns)
